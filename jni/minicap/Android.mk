@@ -6,6 +6,7 @@ LOCAL_MODULE := minicap-common
 LOCAL_SRC_FILES := \
 	JpgEncoder.cpp \
 	SimpleServer.cpp \
+	base64.cpp \
 	minicap.cpp \
 
 LOCAL_STATIC_LIBRARIES := \

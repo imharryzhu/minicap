@@ -20,6 +20,7 @@
 #include "JpgEncoder.hpp"
 #include "SimpleServer.hpp"
 #include "Projection.hpp"
+#include "base64.hpp"
 
 #define BANNER_VERSION 1
 #define BANNER_SIZE 24
@@ -43,6 +44,7 @@ usage(const char* pname) {
     "  -P <value>:    Display projection (<w>x<h>@<w>x<h>/{0|90|180|270}).\n"
     "  -Q <value>:    JPEG quality (0-100).\n"
     "  -s:            Take a screenshot and output it to stdout. Needs -P.\n"
+	"  -b:            Just in screenshot (-s) output is base64encoded data.\n"
     "  -S:            Skip frames when they cannot be consumed quickly enough.\n"
     "  -t:            Attempt to get the capture method running, then exit.\n"
     "  -i:            Get display information in JSON format. May segfault.\n"
@@ -213,10 +215,11 @@ main(int argc, char* argv[]) {
   bool takeScreenshot = false;
   bool skipFrames = false;
   bool testOnly = false;
+  bool base64Code = false;
   Projection proj;
 
   int opt;
-  while ((opt = getopt(argc, argv, "d:n:P:Q:siSth")) != -1) {
+  while ((opt = getopt(argc, argv, "d:n:P:Q:siSthb")) != -1) {
     switch (opt) {
     case 'd':
       displayId = atoi(optarg);
@@ -238,6 +241,9 @@ main(int argc, char* argv[]) {
     case 's':
       takeScreenshot = true;
       break;
+	case 'b':
+	  base64Code = true;
+	  break;
     case 'i':
       showInfo = true;
       break;
@@ -405,8 +411,29 @@ main(int argc, char* argv[]) {
       MCERROR("Unable to encode frame");
       goto disaster;
     }
+	
+	unsigned char* pData = NULL;
+	size_t dataSize = 0;
+	
+	// base encode
+	if (base64Code) {
+		char* pOut = NULL;
+		int length = base64Encode(encoder.getEncodedData(), encoder.getEncodedSize(), &pOut);
+		pData = (unsigned char*)pOut;
+		dataSize = length;
+	} else {
+		pData = encoder.getEncodedData();
+		dataSize = encoder.getEncodedSize();
+	}
 
-    if (pumpf(STDOUT_FILENO, encoder.getEncodedData(), encoder.getEncodedSize()) < 0) {
+	// send data
+	int res = pumpf(STDOUT_FILENO, pData, dataSize);
+	// free base64 data
+	if (base64Code && pData && dataSize > 0) {
+		free(pData);
+	}
+	
+    if (res < 0) {
       MCERROR("Unable to output encoded frame data");
       goto disaster;
     }
